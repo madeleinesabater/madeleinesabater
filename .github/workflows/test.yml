@@ -1,0 +1,53 @@
+name: CI Pipeline
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [20, 22]
+    env:
+      CI: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Install dependencies
+        if: ${{ hashFiles('package.json') != '' }}
+        run: npm ci
+
+      - name: Lint
+        if: ${{ hashFiles('package.json') != '' }}
+        run: npm run lint
+
+      - name: Build or Type Check
+        if: ${{ hashFiles('package.json', 'tsconfig.json') != '' }}
+        run: npm run typecheck
+
+      - name: Test
+        if: ${{ hashFiles('package.json') != '' }}
+        run: npm test -- --runInBand
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: echo "Node ${{ matrix.node-version }}: lint, type check, and tests completed." >> "$GITHUB_STEP_SUMMARY"
